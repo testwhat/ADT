@@ -1,0 +1,128 @@
+<project default="compile">
+    <property name="src" location="src" />
+    <property name="bin" location="bin" />
+    <property name="build" location="build" />
+    <property name="libs" location="libs" />
+    <property name="java.source" value="1.6" />
+    <property name="java.target" value="1.6" />
+    <property name="eclipse.base" value="com.android.ide.eclipse.base_*" />
+    <property name="eclipse.adt" value="com.android.ide.eclipse.adt_*" />
+    <property name="eclipse.ddms" value="com.android.ide.eclipse.ddms_*" />
+    <macrodef name="quiet">
+        <element name="body" implicit="yes" />
+        <sequential>
+            <script language="javascript">
+                var logger = project.getBuildListeners().firstElement();
+                var field = logger.getClass().getDeclaredField("msgOutputLevel");
+                field.setAccessible(true);
+                var loglevel = field.getInt(logger);
+                project.setProperty("original.loglevel", loglevel)
+                //java.lang.System.out.println("loglevel=" + project.getProperty("original.loglevel"));
+                project.getBuildListeners().firstElement().setMessageOutputLevel(org.apache.tools.ant.Project.MSG_ERR);
+            </script>
+            <body />
+            <script language="javascript">
+                project.getBuildListeners().firstElement().setMessageOutputLevel(project.getProperty("original.loglevel"));
+            </script>
+        </sequential>
+    </macrodef>
+
+    <target name="-check-libs">
+        <condition property="need.libs">
+            <not><available file="${libs}" /></not>
+        </condition>
+    </target>
+
+    <target name="-unzip-base-libs" depends="-check-libs" if="need.libs">
+        <last id="adt-zip"><sort><fileset dir="../bin" includes="*.zip" /></sort></last>
+        <property name="adt.zip" location="${ant.refid:adt-zip}" />
+        <echo>Unzip ${adt.zip}</echo>
+        <mkdir dir="${libs}" />
+        <unzip src="${adt.zip}" dest="${libs}" overwrite="true">
+            <patternset>
+                <include name="plugins/${eclipse.base}" />
+                <include name="plugins/${eclipse.adt}" />
+                <include name="plugins/${eclipse.ddms}" />
+            </patternset>
+            <mapper><globmapper from="plugins/*" to="*" /></mapper>
+        </unzip>
+    </target>
+
+    <target name="-unzip-libs-in-jar">
+        <last id="libjar"><sort><fileset dir="${libs}" includes="${ejar}" /></sort></last>
+        <unzip src="${ant.refid:libjar}" dest="${libs}" overwrite="true">
+            <patternset>
+                <include name="libs/*.jar" />
+            </patternset>
+            <mapper><globmapper from="libs/*" to="*" /></mapper>
+        </unzip>
+    </target>
+
+    <target name="-check-sublibs">
+        <condition property="need.sublibs">
+            <not><available file="${libs}/ddmlib.jar" /></not>
+        </condition>
+    </target>
+
+    <target name="gen-libs" depends="-unzip-base-libs" if="-check-sublibs">
+        <antcall target="-unzip-libs-in-jar"><param name="ejar" value="${eclipse.base}" /></antcall>
+        <antcall target="-unzip-libs-in-jar"><param name="ejar" value="${eclipse.adt}" /></antcall>
+        <antcall target="-unzip-libs-in-jar"><param name="ejar" value="${eclipse.ddms}" /></antcall>
+    </target>
+
+    <target name="-compile-module" depends="gen-libs">
+        <mkdir dir="${bin}-${module}" />
+        <path id="classpath">
+            <fileset dir="${libs}" includes="*.jar" />
+            <fileset dir="libs-eclipse" includes="*.jar" />
+        </path>
+        <javac srcdir="${src}-${module}" destdir="${bin}-${module}"
+            bootclasspath="${java.home}/lib/rt.jar:${java.home}/lib/jce.jar"
+            source="${java.source}" target="${java.target}"
+            encoding="utf-8"  includeantruntime="false"
+            debug="true" debuglevel="lines,vars,source"
+            classpathref="classpath" />
+    </target>
+
+    <target name="compile" depends="gen-libs">
+        <antcall target="-compile-module"><param name="module" value="adt" /></antcall>
+        <antcall target="-compile-module"><param name="module" value="ddmlib" /></antcall>
+        <antcall target="-compile-module"><param name="module" value="ddms" /></antcall>
+    </target>
+
+    <target name="-build-jar">
+        <mkdir dir="${build}" />
+        <last id="libjar"><sort><fileset dir="${libs}" includes="${target.lib}" /></sort></last>
+        <basename property="jar.name" file="${ant.refid:libjar}" />
+        <delete file="${build}/${jar.name}" />
+        <jar jarfile="${build}/${jar.name}" basedir="${bin}-${module}" duplicate="preserve">
+            <zipgroupfileset dir="${libs}" includes="${jar.name}" />
+        </jar>
+    </target>
+
+    <target name="build">
+        <antcall target="-build-jar">
+            <param name="target.lib" value="ddmlib.jar" />
+            <param name="module" value="ddmlib" />
+        </antcall>
+
+        <antcall target="-build-jar">
+            <param name="target.jar" value="${eclipse.adt}" />
+            <param name="module" value="adt" />
+        </antcall>
+
+        <quiet>
+        <antcall target="-build-jar">
+            <param name="target.lib" value="${eclipse.ddms}" />
+            <param name="module" value="ddms" />
+        </antcall>
+        </quiet>
+
+    </target>
+
+    <target name="clean">
+        <delete dir="${build}" />
+        <delete dir="${libs}" />
+        <delete dir="${bin}" />
+    </target>
+</project>
