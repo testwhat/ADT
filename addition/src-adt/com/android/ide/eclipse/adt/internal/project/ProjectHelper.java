@@ -862,6 +862,35 @@ public final class ProjectHelper {
         return list;
     }
 
+    static final int API_LEVEL_19_KK = 19;
+    static final int API_LEVEL_24_N = 24;
+
+    static boolean checkCompliance(@NonNull IJavaProject project,
+            int apiLevel, int buildToolsVersion) {
+        // Check API level and buildTools version
+        Sdk currentSdk = Sdk.getCurrent();
+        if (currentSdk != null) {
+            IProject p = project.getProject();
+            IAndroidTarget target = currentSdk.getTarget(p);
+            if (target == null || target.getVersion().getApiLevel() < apiLevel) {
+                return false;
+            }
+
+            ProjectState projectState = Sdk.getProjectState(p);
+            if (projectState != null) {
+                BuildToolInfo buildToolInfo = projectState.getBuildToolInfo();
+                if (buildToolInfo == null) {
+                    buildToolInfo = currentSdk.getLatestBuildTool();
+                }
+                if (buildToolInfo == null
+                        || buildToolInfo.getRevision().getMajor() < buildToolsVersion) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        return false;
+    }
 
     /**
      * Checks a Java project compiler level option against a list of supported versions.
@@ -876,28 +905,10 @@ public final class ProjectHelper {
         }
 
         if (JavaCore.VERSION_1_7.equals(optionValue)) {
-            // Requires API 19 and buildTools 19
-            Sdk currentSdk = Sdk.getCurrent();
-            if (currentSdk != null) {
-                IProject p = project.getProject();
-                IAndroidTarget target = currentSdk.getTarget(p);
-                if (target == null || target.getVersion().getApiLevel() < 19) {
-                    return false;
-                }
-
-                ProjectState projectState = Sdk.getProjectState(p);
-                if (projectState != null) {
-                    BuildToolInfo buildToolInfo = projectState.getBuildToolInfo();
-                    if (buildToolInfo == null) {
-                        buildToolInfo = currentSdk.getLatestBuildTool();
-                    }
-                    if (buildToolInfo == null || buildToolInfo.getRevision().getMajor() < 19) {
-                        return false;
-                    }
-                }
-
-                return true;
-            }
+            return checkCompliance(project, API_LEVEL_19_KK, 19);
+        } else if (JavaCore.VERSION_1_8.equals(optionValue)) {
+            // checkCompliance(project, API_LEVEL_24_N, 24);
+            return checkCompliance(project, 23, 23);
         }
 
         return false;
