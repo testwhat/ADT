@@ -26,6 +26,17 @@
             </script>
         </sequential>
     </macrodef>
+    <scriptdef name="setvar" language="javascript">
+        <attribute name="name" />
+        <attribute name="value" />
+        java.lang.System.setProperty("_global_" + attributes.get("name"), attributes.get("value"));
+    </scriptdef>
+    <scriptdef name="getvar" language="javascript">
+        <attribute name="name" />
+        var name = attributes.get("name");
+        var val = java.lang.System.getProperty("_global_" + name, "");
+        project.setProperty(name, val);
+    </scriptdef>
 
     <target name="-check-libs">
         <condition property="need.libs">
@@ -48,7 +59,13 @@
         </unzip>
     </target>
 
-    <target name="-unzip-libs-in-jar">
+    <target name="-check-sublibs">
+        <condition property="need.sublibs">
+            <not><available file="${libs}/ddmlib.jar" /></not>
+        </condition>
+    </target>
+
+    <target name="-unzip-libs-in-jar" depends="-check-sublibs" if="need.sublibs">
         <last id="libjar"><sort><fileset dir="${libs}" includes="${ejar}" /></sort></last>
         <unzip src="${ant.refid:libjar}" dest="${libs}" overwrite="true">
             <patternset>
@@ -58,13 +75,7 @@
         </unzip>
     </target>
 
-    <target name="-check-sublibs">
-        <condition property="need.sublibs">
-            <not><available file="${libs}/ddmlib.jar" /></not>
-        </condition>
-    </target>
-
-    <target name="gen-libs" depends="-unzip-base-libs" if="-check-sublibs">
+    <target name="gen-libs" depends="-unzip-base-libs">
         <antcall target="-unzip-libs-in-jar"><param name="ejar" value="${eclipse.base}" /></antcall>
         <antcall target="-unzip-libs-in-jar"><param name="ejar" value="${eclipse.adt}" /></antcall>
         <antcall target="-unzip-libs-in-jar"><param name="ejar" value="${eclipse.ddms}" /></antcall>
@@ -84,45 +95,65 @@
             classpathref="classpath" />
     </target>
 
-    <target name="compile" depends="gen-libs">
+    <target name="compile">
         <antcall target="-compile-module"><param name="module" value="adt" /></antcall>
         <antcall target="-compile-module"><param name="module" value="ddmlib" /></antcall>
         <antcall target="-compile-module"><param name="module" value="ddms" /></antcall>
     </target>
 
-    <target name="-build-jar">
+    <target name="-build-jar" depends="compile">
         <mkdir dir="${build}" />
         <last id="libjar"><sort><fileset dir="${libs}" includes="${target.lib}" /></sort></last>
         <basename property="jar.name" file="${ant.refid:libjar}" />
-        <delete file="${build}/${jar.name}" />
-        <jar jarfile="${build}/${jar.name}" basedir="${bin}-${module}" duplicate="preserve">
+        <property name="out.jar.path" value="${build}/${jar.name}" />
+        <setvar name="outjar" value="${out.jar.path}" />
+        <delete file="${out.jar.path}" />
+        <jar jarfile="${out.jar.path}" basedir="${bin}-${module}"
+            filesetmanifest="merge" duplicate="preserve">
             <zipgroupfileset dir="${libs}" includes="${jar.name}" />
         </jar>
     </target>
 
     <target name="build">
-        <antcall target="-build-jar">
-            <param name="target.lib" value="ddmlib.jar" />
-            <param name="module" value="ddmlib" />
-        </antcall>
-
-        <antcall target="-build-jar">
-            <param name="target.jar" value="${eclipse.adt}" />
-            <param name="module" value="adt" />
-        </antcall>
+        <quiet>
+            <antcall target="-build-jar">
+                <param name="target.lib" value="${eclipse.adt}" />
+                <param name="module" value="adt" />
+            </antcall>
+        </quiet>
+        <getvar name="outjar" />
+        <echo>Output: ${outjar}</echo>
 
         <quiet>
-        <antcall target="-build-jar">
-            <param name="target.lib" value="${eclipse.ddms}" />
-            <param name="module" value="ddms" />
-        </antcall>
+            <antcall target="-build-jar">
+                <param name="target.lib" value="ddmlib.jar" />
+                <param name="module" value="ddmlib" />
+            </antcall>
         </quiet>
+        <getvar name="outjar" />
+        <echo>Output: ${outjar}</echo>
+        <property name="out.ddmlib" value="${outjar}" />
 
+        <quiet>
+            <antcall target="-build-jar">
+                <param name="target.lib" value="${eclipse.ddms}" />
+                <param name="module" value="ddms" />
+            </antcall>
+        </quiet>
+        <getvar name="outjar" />
+        <echo>Output: ${outjar}</echo>
+        <property name="out.ddms" value="${outjar}" />
+
+        <jar destfile="${out.ddms}" update="true">
+            <zipfileset file="${build}/ddmlib.jar" prefix="libs" />
+        </jar>
     </target>
 
     <target name="clean">
         <delete dir="${build}" />
         <delete dir="${libs}" />
-        <delete dir="${bin}" />
+        <delete dir="${bin}-adt" />
+        <delete dir="${bin}-ddmlib" />
+        <delete dir="${bin}-ddms" />
     </target>
 </project>
