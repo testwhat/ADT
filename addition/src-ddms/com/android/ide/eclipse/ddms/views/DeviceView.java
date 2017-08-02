@@ -106,6 +106,7 @@ public class DeviceView extends ViewPart implements IUiSelectionListener, IClien
     private Shell mParentShell;
     private DevicePanel mDeviceList;
 
+    private Action mToggleDdmsAction;
     private Action mResetAdbAction;
     private Action mCaptureAction;
     private Action mViewUiAutomatorHierarchyAction;
@@ -384,6 +385,44 @@ public class DeviceView extends ViewPart implements IUiSelectionListener, IClien
         mResetAdbAction.setImageDescriptor(PlatformUI.getWorkbench()
                 .getSharedImages().getImageDescriptor(
                         ISharedImages.IMG_OBJS_WARN_TSK));
+
+        final ImageDescriptor ddmsTurnOffImg = PlatformUI.getWorkbench()
+                .getSharedImages().getImageDescriptor(
+                        ISharedImages.IMG_ELCL_STOP);
+        final ImageDescriptor ddmsTurnOnImg = PlatformUI.getWorkbench()
+                .getSharedImages().getImageDescriptor(
+                        ISharedImages.IMG_OBJ_ADD);
+        mToggleDdmsAction = new Action("Toggle DDMS") {
+            boolean mOff;
+
+            @Override
+            public void run() {
+                if (mOff) {
+                    mToggleDdmsAction.setToolTipText("Turn off DDMS");
+                    mToggleDdmsAction.setImageDescriptor(ddmsTurnOffImg);
+                    new org.eclipse.core.runtime.jobs.Job(
+                            Messages.DdmsPlugin_DDMS_Post_Create_Init) {
+                        @Override
+                        protected IStatus run(IProgressMonitor progressMonitor) {
+                            try {
+                                AndroidDebugBridge.createBridge(DdmsPlugin.getAdb(), true);
+                            } catch (Throwable t) {
+                                return new Status(IStatus.ERROR, DdmsPlugin.PLUGIN_ID,
+                                        "Error creating adb debug bridge", t);
+                            }
+                            return Status.OK_STATUS;
+                        }
+                    }.schedule();
+                } else {
+                    mToggleDdmsAction.setToolTipText("Turn on DDMS");
+                    mToggleDdmsAction.setImageDescriptor(ddmsTurnOnImg);
+                    AndroidDebugBridge.disconnectBridge();
+                }
+                mOff = !mOff;
+            }
+        };
+        mToggleDdmsAction.setToolTipText("Turn off DDMS");
+        mToggleDdmsAction.setImageDescriptor(ddmsTurnOffImg);
 
         mKillAppAction = new Action() {
             @Override
@@ -855,6 +894,8 @@ public class DeviceView extends ViewPart implements IUiSelectionListener, IClien
         toolBarManager.add(mViewUiAutomatorHierarchyAction);
         toolBarManager.add(new Separator());
         toolBarManager.add(mSystraceAction);
+        toolBarManager.add(new Separator());
+        toolBarManager.add(mToggleDdmsAction);
         for (IClientAction a : DdmsPlugin.getDefault().getClientSpecificActions()) {
             toolBarManager.add(a.getAction());
         }
