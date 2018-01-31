@@ -1,7 +1,7 @@
 /.gradle
-addition/**/bin-*
-addition/**/build
-addition/**/libs
+addition/bin-*
+addition/build
+addition/libs
 *.iml
 *.ipr
 *.iws
