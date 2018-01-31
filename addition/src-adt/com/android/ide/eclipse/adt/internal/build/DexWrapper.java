@@ -24,6 +24,7 @@ import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
 
 import java.io.File;
+import java.io.OutputStream;
 import java.io.PrintStream;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
@@ -44,6 +45,9 @@ public final class DexWrapper {
     private final static String DEX_CONSOLE = "com.android.dx.command.DxConsole"; //$NON-NLS-1$
     private final static String DEX_ARGS = "com.android.dx.command.dexer.Main$Arguments"; //$NON-NLS-1$
 
+    // dx version >=1.13 uses DxContext (no DxConsole)
+    private final static String DEX_CONTEXT = "com.android.dx.command.dexer.DxContext"; //$NON-NLS-1$
+
     private final static String MAIN_RUN = "run"; //$NON-NLS-1$
 
     private Method mRunMethod;
@@ -55,8 +59,13 @@ public final class DexWrapper {
     private Field mArgFileNames;
     private Field mArgForceJumbo;
 
+    private boolean mLegacyDx;
     private Field mConsoleOut;
     private Field mConsoleErr;
+
+    // For dx version >=1.13
+    private Constructor<?> mContextConstructor;
+    private Constructor<?> mMainConstructor;
 
     /**
      * Loads the dex library from a file path.
@@ -82,7 +91,15 @@ public final class DexWrapper {
 
             // get the classes.
             Class<?> mainClass = loader.loadClass(DEX_MAIN);
-            Class<?> consoleClass = loader.loadClass(DEX_CONSOLE);
+            Class<?> consoleClass = null;
+            Class<?> contextClass = null;
+            try {
+                consoleClass = loader.loadClass(DEX_CONSOLE);
+                mLegacyDx = true;
+            } catch (Exception ignored) {
+                contextClass = loader.loadClass(DEX_CONTEXT);
+            }
+
             Class<?> argClass = loader.loadClass(DEX_ARGS);
 
             try {
@@ -96,8 +113,14 @@ public final class DexWrapper {
                 mArgVerbose = argClass.getField("verbose"); //$NON-NLS-1$
                 mArgForceJumbo = argClass.getField("forceJumbo"); //$NON-NLS-1$
 
-                mConsoleOut = consoleClass.getField("out"); //$NON-NLS-1$
-                mConsoleErr = consoleClass.getField("err"); //$NON-NLS-1$
+                if (mLegacyDx) {
+                    mConsoleOut = consoleClass.getField("out"); //$NON-NLS-1$
+                    mConsoleErr = consoleClass.getField("err"); //$NON-NLS-1$
+                } else {
+                    mContextConstructor = contextClass.getConstructor(
+                            OutputStream.class, OutputStream.class);
+                    mMainConstructor = mainClass.getConstructor(contextClass);
+                }
 
             } catch (SecurityException e) {
                 return createErrorStatus(Messages.DexWrapper_SecuryEx_Unable_To_Find_API, e);
@@ -161,8 +184,10 @@ public final class DexWrapper {
         assert mArgFileNames != null;
         assert mArgForceJumbo != null;
         assert mArgVerbose != null;
-        assert mConsoleOut != null;
-        assert mConsoleErr != null;
+        if (mLegacyDx) {
+            assert mConsoleOut != null;
+            assert mConsoleErr != null;
+        }
 
         if (mRunMethod == null) {
             throw new CoreException(createErrorStatus(
@@ -173,8 +198,10 @@ public final class DexWrapper {
 
         try {
             // set the stream
-            mConsoleErr.set(null /* obj: static field */, errStream);
-            mConsoleOut.set(null /* obj: static field */, outStream);
+            if (mLegacyDx) {
+                mConsoleErr.set(null /* obj: static field */, errStream);
+                mConsoleOut.set(null /* obj: static field */, outStream);
+            }
 
             // create the Arguments object.
             Object args = mArgConstructor.newInstance();
@@ -185,7 +212,15 @@ public final class DexWrapper {
             mArgVerbose.set(args, verbose);
 
             // call the run method
-            Object res = mRunMethod.invoke(null /* obj: static method */, args);
+            final Object res;
+            if (mLegacyDx) {
+                res = mRunMethod.invoke(null /* obj: static method */, args);
+            } else {
+                final Object context = mContextConstructor.newInstance(outStream, errStream);
+                final Object main = mMainConstructor.newInstance(context);
+                res = main.getClass().getDeclaredMethod(
+                        "runDx", args.getClass()).invoke(main, args);
+            }
 
             if (res instanceof Integer) {
                 return ((Integer)res).intValue();
