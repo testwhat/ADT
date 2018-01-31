@@ -7,6 +7,16 @@ Android Developer Tools (ADT) is a plugin for the Eclipse IDE that extends the c
 The Android Studio IDE is currently not as mature as the ADT Eclipse plugin was especially when it comes to compile and debug native C/C++ applications using the NDK. This update is based on an unreleased 24.2.0 version of ADT and adds support for native development and debugging with the latest NDK releases supporting all known CPU architectures.
 
 ## Changelog
+#### Version [24.2.0-20160729]
+- Fixed output parsing of adb shell commands on Android Nougat. ADT now recognizes devices with Android 7.0 and lets you debug applications on the latest Android preview release.
+- Tested with the latest beta version of the NDK (r13 beta 1).
+
+#### Version [24.2.0-20160716]
+- Added support for the latest Eclipse version (Neon).
+- Added some missing paths to the generated gdb command file _gdb.init_.
+- Tested with the latest NDK version (r12b).
+- Used the GitHub release feature to upload binary files.
+
 #### Version [24.2.0-20160515]
 - Added support for the upcoming NDK r12 (tested with r12 beta 1). Do not use r11 for native debugging as it came with a broken gdb support.
 - [gdb] Added a new generated gdb command file _gdb.init_ replacing the old _gdb.setup_. The file adds the "set solib-absolute-prefix" command to support newer versions of gdb. You can also switch back to the old generated command file or use a custom one.
@@ -45,7 +55,7 @@ patch -p1 < ADT-24.2.0-YYYYMMDD.patch
 
 > **Which Eclipse version do I need to use?**
 
-The ADT plugin was tested with the latest Mars (4.5) version of the Eclipse IDE. It should also be compatible with older versions starting from Juno (4.2).
+The ADT plugin was tested with the latest Neon (4.6) version of the Eclipse IDE. It should also be compatible with older versions starting from Juno (4.2).
 
 > **Why GDB quits when I try to add a breakpoint?**
 
@@ -53,12 +63,12 @@ Enable the non-stop mode in GDB by activating the corresponding option at _Prefe
 
 > **Why do I get the message "com.android.ddmlib.SyncException: Permission denied"?**
 
-This is because the ADT plugin was unable to get the application installation directory on your device. The "run-as" command shell used to get the application path fails on some known devices such as those from Samsung. See the related issue on the Android issue tracker at: https://code.google.com/p/android/issues/detail?id=206581. We suggest you to use another device to debug your application.
+This is because the ADT plugin was unable to get the application installation directory on your device. The "run-as" adb shell command used to get the application path fails on some known devices such as those from Samsung. See the related issue on the Android issue tracker at: https://code.google.com/p/android/issues/detail?id=206581. We suggest you to use another device to debug your application.
 
 > **Where do I get the download link of the latest release?**
 
-You can download it from GitHub at _bin/ADT-24.2.0-YYYYMMDD.zip_.
+You can download it from GitHub in the _releases_ section. The file name format is _ADT-24.2.0-YYYYMMDD.zip_.
 
 > **Where do I get the download link of an older release?**
 
-You can find all the releases hosted on a personal server at: http://khaled-lakehal.com/ADT/.
+You can find all of the plugin releases archived on my personal server at: http://khaled-lakehal.com/ADT/.
