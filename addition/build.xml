@@ -61,7 +61,10 @@
 
     <target name="-check-sublibs">
         <condition property="need.sublibs">
-            <not><available file="${libs}/ddmlib.jar" /></not>
+            <not><or>
+                <available file="${libs}/ddmlib.jar" />
+                <available file="${libs}/ddmuilib.jar" />
+            </or></not>
         </condition>
     </target>
 
@@ -98,6 +101,7 @@
     <target name="compile">
         <antcall target="-compile-module"><param name="module" value="adt" /></antcall>
         <antcall target="-compile-module"><param name="module" value="ddmlib" /></antcall>
+        <antcall target="-compile-module"><param name="module" value="ddmuilib" /></antcall>
         <antcall target="-compile-module"><param name="module" value="ddms" /></antcall>
     </target>
 
@@ -114,38 +118,44 @@
         </jar>
     </target>
 
+    <target name="-build-jar-quite">
+        <quiet>
+            <antcall target="-build-jar">
+                <param name="target.lib" value="${target.lib}" />
+                <param name="module" value="${module}" />
+            </antcall>
+        </quiet>
+        <getvar name="outjar" />
+        <echo>Output: ${outjar}</echo>
+    </target>
+
     <target name="build">
-        <quiet>
-            <antcall target="-build-jar">
-                <param name="target.lib" value="${eclipse.adt}" />
-                <param name="module" value="adt" />
-            </antcall>
-        </quiet>
-        <getvar name="outjar" />
-        <echo>Output: ${outjar}</echo>
+        <antcall target="-build-jar-quite">
+            <param name="target.lib" value="${eclipse.adt}" />
+            <param name="module" value="adt" />
+        </antcall>
 
-        <quiet>
-            <antcall target="-build-jar">
-                <param name="target.lib" value="ddmlib.jar" />
-                <param name="module" value="ddmlib" />
-            </antcall>
-        </quiet>
-        <getvar name="outjar" />
-        <echo>Output: ${outjar}</echo>
-        <property name="out.ddmlib" value="${outjar}" />
+        <antcall target="-build-jar-quite">
+            <param name="target.lib" value="ddmlib.jar" />
+            <param name="module" value="ddmlib" />
+        </antcall>
+        <getvar name="outjar" /><property name="out.ddmlib" value="${outjar}" />
 
-        <quiet>
-            <antcall target="-build-jar">
-                <param name="target.lib" value="${eclipse.ddms}" />
-                <param name="module" value="ddms" />
-            </antcall>
-        </quiet>
-        <getvar name="outjar" />
-        <echo>Output: ${outjar}</echo>
-        <property name="out.ddms" value="${outjar}" />
+        <antcall target="-build-jar-quite">
+            <param name="target.lib" value="ddmuilib.jar" />
+            <param name="module" value="ddmuilib" />
+        </antcall>
+        <getvar name="outjar" /><property name="out.ddmuilib" value="${outjar}" />
+
+        <antcall target="-build-jar-quite">
+            <param name="target.lib" value="${eclipse.ddms}" />
+            <param name="module" value="ddms" />
+        </antcall>
+        <getvar name="outjar" /><property name="out.ddms" value="${outjar}" />
 
         <jar destfile="${out.ddms}" update="true">
-            <zipfileset file="${build}/ddmlib.jar" prefix="libs" />
+            <zipfileset file="${out.ddmlib}" prefix="libs" />
+            <zipfileset file="${out.ddmuilib}" prefix="libs" />
         </jar>
     </target>
 
