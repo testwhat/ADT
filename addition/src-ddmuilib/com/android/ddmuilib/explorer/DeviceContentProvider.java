@@ -135,7 +135,8 @@ class DeviceContentProvider implements ITreeContentProvider {
         if (element instanceof FileEntry) {
             FileEntry entry = (FileEntry)element;
 
-            return entry.getType() == FileListingService.TYPE_DIRECTORY;
+            return entry.getType() == FileListingService.TYPE_DIRECTORY
+                    || entry.getType() == FileListingService.TYPE_DIRECTORY_LINK;
         }
         return false;
     }
