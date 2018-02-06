@@ -17,6 +17,7 @@
 package com.android.ddmuilib.explorer;
 
 import com.android.ddmlib.AdbCommandRejectedException;
+import com.android.ddmlib.CollectingOutputReceiver;
 import com.android.ddmlib.DdmConstants;
 import com.android.ddmlib.FileListingService;
 import com.android.ddmlib.FileListingService.FileEntry;
@@ -41,6 +42,7 @@ import org.eclipse.core.runtime.Status;
 import org.eclipse.jface.dialogs.ErrorDialog;
 import org.eclipse.jface.dialogs.IInputValidator;
 import org.eclipse.jface.dialogs.InputDialog;
+import org.eclipse.jface.dialogs.MessageDialog;
 import org.eclipse.jface.preference.IPreferenceStore;
 import org.eclipse.jface.viewers.DoubleClickEvent;
 import org.eclipse.jface.viewers.IDoubleClickListener;
@@ -221,12 +223,10 @@ public class DeviceExplorer extends Panel {
                     if (element instanceof FileEntry) {
                         mPullAction.setEnabled(true);
                         mPushAction.setEnabled(selection.size() == 1);
+                        FileEntry entry = (FileEntry) element;
+                        setDeleteEnabledState(entry);
                         if (selection.size() == 1) {
-                            FileEntry entry = (FileEntry) element;
-                            setDeleteEnabledState(entry);
                             mCreateNewFolderAction.setEnabled(entry.isDirectory());
-                        } else {
-                            mDeleteAction.setEnabled(false);
                         }
                     }
                 }
@@ -590,33 +590,39 @@ public class DeviceExplorer extends Panel {
         // get the name of the object we're going to pull
         TreeItem[] items = mTree.getSelection();
 
-        if (items.length != 1) {
+        if (items.length < 1) {
             return;
         }
 
-        FileEntry entry = (FileEntry)items[0].getData();
-        final FileEntry parentEntry = entry.getParent();
-
-        // create the delete command
-        String command = "rm " + entry.getFullEscapedPath(); //$NON-NLS-1$
-
-        try {
-            mCurrentDevice.executeShellCommand(command, new IShellOutputReceiver() {
-                @Override
-                public void addOutput(byte[] data, int offset, int length) {
-                    // pass
-                    // TODO get output to display errors if any.
-                    //DdmConsole.printToConsole(message);
+        for (TreeItem item : items) {
+            if (((FileEntry) item.getData()).getType() != FileListingService.TYPE_FILE) {
+                if (!MessageDialog.openConfirm(mTree.getShell(), "Confirm to delete",
+                        "Selection contains non-file")) {
+                    return;
                 }
+                break;
+            }
+        }
 
+        for (TreeItem item : items) {
+            deleteEntry((FileEntry) item.getData());
+        }
+    }
+
+    void deleteEntry(FileEntry entry) {
+        final FileEntry parentEntry = entry.getParent();
+        final String command = "rm -rf " + entry.getFullEscapedPath(); //$NON-NLS-1$
+
+        DdmConsole.printToConsole("Delete " + entry.getFullEscapedPath());
+        try {
+            mCurrentDevice.executeShellCommand(command, new CollectingOutputReceiver() {
                 @Override
                 public void flush() {
+                    String output = getOutput().trim();
+                    if (output.length() > 0) {
+                        DdmConsole.printToConsole(getOutput());
+                    }
                     mTreeViewer.refresh(parentEntry);
-                }
-
-                @Override
-                public boolean isCancelled() {
-                    return false;
                 }
             });
         } catch (IOException e) {
@@ -632,7 +638,6 @@ public class DeviceExplorer extends Panel {
             // adb failed somehow, we do nothing. We should be displaying the error from the output
             // of the shell command.
         }
-
     }
 
     public void createNewFolderInSelection() {
@@ -918,6 +923,7 @@ public class DeviceExplorer extends Panel {
      * @param element The selected FileEntry
      */
     protected void setDeleteEnabledState(FileEntry element) {
-        mDeleteAction.setEnabled(element.getType() == FileListingService.TYPE_FILE);
+        //mDeleteAction.setEnabled(element.getType() == FileListingService.TYPE_FILE);
+        mDeleteAction.setEnabled(!element.isRoot());
     }
 }
